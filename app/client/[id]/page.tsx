@@ -85,6 +85,14 @@ export default function ClientBookingPage() {
 
     setIsBooking(true);
 
+    // Optimistically remove the slot from availability
+    const previousAvailability = availability;
+    setAvailability(prev => prev.map(day =>
+      day.date === date
+        ? { ...day, slots: day.slots.filter(slot => slot !== time) }
+        : day
+    ));
+
     try {
       const datetime = new Date(`${date}T${time}:00`);
 
@@ -101,14 +109,18 @@ export default function ClientBookingPage() {
         await fetchData(); // Refresh to update availability
       } else {
         const data = await response.json();
+        // Rollback: restore the slot to availability
+        setAvailability(previousAvailability);
         // Show specific error or fallback message
         const errorMessage = data.error || 'Booking failed - slot may no longer be available';
         showToast(errorMessage, 'error');
-        // Always refresh to ensure UI matches actual availability
+        // Refresh to ensure UI matches actual availability
         await fetchData();
       }
     } catch (error) {
       console.error('Error booking slot:', error);
+      // Rollback: restore the slot to availability
+      setAvailability(previousAvailability);
       showToast('Something went wrong. Please check your connection and try again.', 'error');
       // Refresh to ensure UI is in sync with server
       await fetchData();

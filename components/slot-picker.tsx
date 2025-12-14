@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 
 interface SlotPickerProps {
   availability: { date: string; slots: string[] }[];
@@ -12,6 +12,35 @@ export function SlotPicker({ availability, onSelectSlot, isLoading }: SlotPicker
   const [selectedDate, setSelectedDate] = useState<string | null>(
     availability.length > 0 ? availability[0].date : null
   );
+
+  // Filter out past slots for today (client-side to handle stale data)
+  const filteredAvailability = useMemo(() => {
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const currentHour = now.getHours();
+
+    return availability.map(day => {
+      if (day.date === todayStr) {
+        // For today, only show slots that are in the future
+        const futureSlots = day.slots.filter(time => {
+          const [hours] = time.split(':').map(Number);
+          return hours > currentHour;
+        });
+        return { ...day, slots: futureSlots };
+      }
+      return day;
+    }).filter(day => day.slots.length > 0 || day.date === todayStr);
+  }, [availability]);
+
+  // Update selectedDate if it's no longer valid in filtered availability
+  useEffect(() => {
+    if (filteredAvailability.length > 0) {
+      const dateExists = filteredAvailability.some(d => d.date === selectedDate);
+      if (!dateExists) {
+        setSelectedDate(filteredAvailability[0].date);
+      }
+    }
+  }, [filteredAvailability, selectedDate]);
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr + 'T00:00:00');
@@ -33,9 +62,9 @@ export function SlotPicker({ availability, onSelectSlot, isLoading }: SlotPicker
     return `${displayHours}:00 ${suffix}`;
   };
 
-  const selectedDaySlots = availability.find(d => d.date === selectedDate)?.slots || [];
+  const selectedDaySlots = filteredAvailability.find(d => d.date === selectedDate)?.slots || [];
 
-  if (availability.length === 0) {
+  if (filteredAvailability.length === 0) {
     return (
       <div className="text-center py-8 text-gray-400">
         No available slots in the next 7 days
@@ -47,7 +76,7 @@ export function SlotPicker({ availability, onSelectSlot, isLoading }: SlotPicker
     <div className="space-y-4">
       {/* Date tabs - horizontal scroll */}
       <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
-        {availability.map(({ date }) => (
+        {filteredAvailability.map(({ date }) => (
           <button
             key={date}
             onClick={() => setSelectedDate(date)}
