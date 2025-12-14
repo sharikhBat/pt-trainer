@@ -8,9 +8,10 @@ interface ClientCardProps {
   onClick?: () => void;
   showSessions?: boolean;
   onAdjustSessions?: (delta: number) => void;
+  isPending?: boolean;
 }
 
-export function ClientCard({ name, sessionsRemaining, onClick, showSessions = false, onAdjustSessions }: ClientCardProps) {
+export function ClientCard({ name, sessionsRemaining, onClick, showSessions = false, onAdjustSessions, isPending = false }: ClientCardProps) {
   const isLowSessions = sessionsRemaining <= 3;
 
   if (onAdjustSessions) {
@@ -26,7 +27,7 @@ export function ClientCard({ name, sessionsRemaining, onClick, showSessions = fa
         <div className="flex items-center gap-2">
           <button
             onClick={() => onAdjustSessions(-1)}
-            disabled={sessionsRemaining <= 0}
+            disabled={sessionsRemaining <= 0 || isPending}
             className="w-10 h-10 rounded-full bg-[#1c1c1c] text-gray-400 font-bold text-lg
               hover:bg-[#262626] active:bg-[#333] transition-colors border border-[#333]
               disabled:opacity-30 disabled:cursor-not-allowed"
@@ -34,13 +35,15 @@ export function ClientCard({ name, sessionsRemaining, onClick, showSessions = fa
             −
           </button>
           <span className={`w-12 text-center font-bold text-lg tabular-nums
-            ${isLowSessions ? 'text-accent-hover' : 'text-gray-100'}`}>
+            ${isPending ? 'text-gray-500' : isLowSessions ? 'text-accent-hover' : 'text-gray-100'}`}>
             {sessionsRemaining}
           </span>
           <button
             onClick={() => onAdjustSessions(1)}
+            disabled={isPending}
             className="w-10 h-10 rounded-full bg-accent/20 text-accent-hover font-bold text-lg
-              hover:bg-accent/30 active:bg-accent/40 transition-colors border border-accent/30"
+              hover:bg-accent/30 active:bg-accent/40 transition-colors border border-accent/30
+              disabled:opacity-30 disabled:cursor-not-allowed"
           >
             +
           </button>

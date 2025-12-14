@@ -7,11 +7,22 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    await cancelBooking(parseInt(id));
+    const result = await cancelBooking(parseInt(id));
+
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.error || 'Failed to cancel session' },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error cancelling booking:', error);
-    return NextResponse.json({ error: 'Failed to cancel booking' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Something went wrong. Please try again.' },
+      { status: 500 }
+    );
   }
 }
 
@@ -21,10 +32,21 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    await cancelBooking(parseInt(id));
+    const result = await cancelBooking(parseInt(id));
+
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.error || 'Failed to delete session' },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting booking:', error);
-    return NextResponse.json({ error: 'Failed to delete booking' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Something went wrong. Please try again.' },
+      { status: 500 }
+    );
   }
 }

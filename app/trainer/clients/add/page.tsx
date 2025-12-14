@@ -42,29 +42,35 @@ export default function AddClientPage() {
     }
 
     setIsSubmitting(true);
+    const clientName = name.trim();
 
     try {
       const response = await fetch('/api/clients', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: name.trim(),
+          name: clientName,
           sessionsRemaining: parseInt(sessions) || 0,
         }),
       });
 
       if (response.ok) {
-        showToast(`${name} added`, 'success');
+        showToast(`${clientName} added`, 'success');
+        // Clear form on success
+        setName('');
+        setSessions('');
+        // Only redirect after confirmed success
         setTimeout(() => {
           router.push('/trainer/dashboard');
         }, 500);
       } else {
-        showToast('Failed to add client', 'error');
+        const data = await response.json();
+        showToast(data.error || 'Failed to add client. Please try again.', 'error');
         setIsSubmitting(false);
       }
     } catch (error) {
       console.error('Error adding client:', error);
-      showToast('Failed to add client', 'error');
+      showToast('Something went wrong. Please check your connection and try again.', 'error');
       setIsSubmitting(false);
     }
   };

@@ -51,10 +51,21 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    await deleteClient(parseInt(id));
+    const result = await deleteClient(parseInt(id));
+
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.error || 'Failed to delete client' },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting client:', error);
-    return NextResponse.json({ error: 'Failed to delete client' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Something went wrong. Please try again.' },
+      { status: 500 }
+    );
   }
 }

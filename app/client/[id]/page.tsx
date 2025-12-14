@@ -6,6 +6,7 @@ import { SlotPicker } from '@/components/slot-picker';
 import { SessionList } from '@/components/session-list';
 import { useToast } from '@/components/ui/toast';
 import { ErrorState } from '@/components/ui/error-state';
+import { ClientBookingSkeleton } from '@/components/skeletons/client-booking-skeleton';
 
 interface Client {
   id: number;
@@ -33,6 +34,7 @@ export default function ClientBookingPage() {
   const [availability, setAvailability] = useState<Availability[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isBooking, setIsBooking] = useState(false);
+  const [cancellingId, setCancellingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const clientId = params.id as string;
@@ -99,18 +101,33 @@ export default function ClientBookingPage() {
         await fetchData(); // Refresh to update availability
       } else {
         const data = await response.json();
-        showToast(data.error || 'Failed to book slot', 'error');
-        await fetchData(); // Refresh anyway to show updated availability
+        // Show specific error or fallback message
+        const errorMessage = data.error || 'Booking failed - slot may no longer be available';
+        showToast(errorMessage, 'error');
+        // Always refresh to ensure UI matches actual availability
+        await fetchData();
       }
     } catch (error) {
       console.error('Error booking slot:', error);
-      showToast('Failed to book slot', 'error');
+      showToast('Something went wrong. Please check your connection and try again.', 'error');
+      // Refresh to ensure UI is in sync with server
+      await fetchData();
     } finally {
       setIsBooking(false);
     }
   };
 
   const handleCancelBooking = async (bookingId: number) => {
+    if (cancellingId !== null) return; // Prevent double clicks
+
+    // Store the booking before removing from UI (for potential rollback)
+    const bookingToCancel = bookings.find(b => b.id === bookingId);
+
+    setCancellingId(bookingId);
+
+    // Optimistically remove from UI
+    setBookings(prev => prev.filter(b => b.id !== bookingId));
+
     try {
       const response = await fetch(`/api/bookings/${bookingId}`, {
         method: 'PATCH',
@@ -118,13 +135,29 @@ export default function ClientBookingPage() {
 
       if (response.ok) {
         showToast('Session cancelled', 'info');
-        fetchData();
+        // Refresh to get updated availability (slot is now free)
+        await fetchData();
       } else {
-        showToast('Failed to cancel session', 'error');
+        const data = await response.json();
+        // Rollback: restore the booking to UI
+        if (bookingToCancel) {
+          setBookings(prev => [...prev, bookingToCancel].sort(
+            (a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime()
+          ));
+        }
+        showToast(data.error || 'Couldn\'t cancel session. Please try again.', 'error');
       }
     } catch (error) {
       console.error('Error cancelling booking:', error);
-      showToast('Failed to cancel session', 'error');
+      // Rollback: restore the booking to UI
+      if (bookingToCancel) {
+        setBookings(prev => [...prev, bookingToCancel].sort(
+          (a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime()
+        ));
+      }
+      showToast('Something went wrong. Please try again.', 'error');
+    } finally {
+      setCancellingId(null);
     }
   };
 
@@ -134,11 +167,7 @@ export default function ClientBookingPage() {
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-        <div className="text-gray-400">Loading...</div>
-      </div>
-    );
+    return <ClientBookingSkeleton />;
   }
 
   if (error) {
@@ -203,6 +232,7 @@ export default function ClientBookingPage() {
           <SessionList
             sessions={bookings}
             onCancel={handleCancelBooking}
+            cancellingId={cancellingId}
           />
         </section>
       </div>

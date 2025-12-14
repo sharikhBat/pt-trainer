@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { ErrorState } from '@/components/ui/error-state';
 import { useToast } from '@/components/ui/toast';
 import { BottomSheet } from '@/components/ui/bottom-sheet';
+import { TrainerDashboardSkeleton } from '@/components/skeletons/trainer-dashboard-skeleton';
 
 interface BookingWithClient {
   id: number;
@@ -111,23 +112,31 @@ export default function TrainerDashboard() {
   const handleCompleteSession = async () => {
     if (!inProgressBooking) return;
 
+    const bookingId = inProgressBooking.id;
+
     try {
-      const response = await fetch(`/api/bookings/${inProgressBooking.id}/complete`, {
+      const response = await fetch(`/api/bookings/${bookingId}/complete`, {
         method: 'POST',
       });
 
       if (response.ok) {
         showToast('Session completed', 'success');
-        setCompletedIds(prev => new Set([...prev, inProgressBooking.id]));
+        setCompletedIds(prev => new Set([...prev, bookingId]));
         setShowCompletionSheet(false);
         setInProgressBooking(null);
-        fetchBookings();
+        await fetchBookings();
       } else {
-        showToast('Failed to complete session', 'error');
+        const data = await response.json();
+        // Show specific error message
+        showToast(data.error || 'Failed to complete session. Please try again.', 'error');
+        // Refresh to ensure UI is in sync
+        await fetchBookings();
       }
     } catch (error) {
       console.error('Error completing session:', error);
-      showToast('Failed to complete session', 'error');
+      showToast('Something went wrong. Session may not have been completed.', 'error');
+      // Refresh to ensure UI shows actual state
+      await fetchBookings();
     }
   };
 
@@ -149,13 +158,17 @@ export default function TrainerDashboard() {
 
       if (response.ok) {
         showToast('Session completed', 'success');
-        fetchBookings();
+        await fetchBookings();
       } else {
-        showToast('Failed to complete session', 'error');
+        const data = await response.json();
+        showToast(data.error || 'Failed to complete session. Please try again.', 'error');
+        // Refresh to ensure UI matches server state
+        await fetchBookings();
       }
     } catch (error) {
       console.error('Error completing session:', error);
-      showToast('Failed to complete session', 'error');
+      showToast('Something went wrong. Session may not have been completed.', 'error');
+      await fetchBookings();
     } finally {
       setLoadingIds(prev => {
         const next = new Set(prev);
@@ -174,13 +187,17 @@ export default function TrainerDashboard() {
 
       if (response.ok) {
         showToast('Session cancelled', 'success');
-        fetchBookings();
+        await fetchBookings();
       } else {
-        showToast('Failed to cancel session', 'error');
+        const data = await response.json();
+        showToast(data.error || 'Failed to cancel session. Please try again.', 'error');
+        // Refresh to ensure UI matches server state
+        await fetchBookings();
       }
     } catch (error) {
       console.error('Error cancelling booking:', error);
-      showToast('Failed to cancel session', 'error');
+      showToast('Something went wrong. Please try again.', 'error');
+      await fetchBookings();
     } finally {
       setLoadingIds(prev => {
         const next = new Set(prev);
@@ -230,11 +247,7 @@ export default function TrainerDashboard() {
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-        <div className="text-gray-400">Loading...</div>
-      </div>
-    );
+    return <TrainerDashboardSkeleton />;
   }
 
   if (error) {

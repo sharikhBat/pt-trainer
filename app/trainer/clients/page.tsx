@@ -7,11 +7,17 @@ import { ClientCard } from '@/components/client-card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { ErrorState } from '@/components/ui/error-state';
+import { TrainerClientsSkeleton } from '@/components/skeletons/trainer-clients-skeleton';
 
 interface Client {
   id: number;
   name: string;
   sessionsRemaining: number;
+}
+
+interface PendingUpdate {
+  clientId: number;
+  previousValue: number;
 }
 
 export default function ManageClientsPage() {
@@ -20,6 +26,7 @@ export default function ManageClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pendingUpdates, setPendingUpdates] = useState<Set<number>>(new Set());
 
   const checkAuth = useCallback(() => {
     const authData = localStorage.getItem('pt-trainer-auth');
@@ -63,7 +70,14 @@ export default function ManageClientsPage() {
     const client = clients.find((c) => c.id === clientId);
     if (!client) return;
 
-    const newSessions = Math.max(0, client.sessionsRemaining + delta);
+    // Prevent rapid-fire clicks while an update is pending
+    if (pendingUpdates.has(clientId)) return;
+
+    const previousValue = client.sessionsRemaining;
+    const newSessions = Math.max(0, previousValue + delta);
+
+    // Mark as pending
+    setPendingUpdates(prev => new Set([...prev, clientId]));
 
     // Optimistic update
     setClients((prev) =>
@@ -80,23 +94,36 @@ export default function ManageClientsPage() {
       });
 
       if (!response.ok) {
-        // Revert on error
-        fetchClients();
-        showToast('Failed to update sessions', 'error');
+        const data = await response.json();
+        // Immediate rollback to previous value
+        setClients((prev) =>
+          prev.map((c) =>
+            c.id === clientId ? { ...c, sessionsRemaining: previousValue } : c
+          )
+        );
+        showToast(data.error || 'Failed to update sessions. Reverted.', 'error');
       }
     } catch (error) {
       console.error('Error updating sessions:', error);
-      fetchClients();
-      showToast('Failed to update sessions', 'error');
+      // Immediate rollback to previous value
+      setClients((prev) =>
+        prev.map((c) =>
+          c.id === clientId ? { ...c, sessionsRemaining: previousValue } : c
+        )
+      );
+      showToast('Something went wrong. Sessions reverted.', 'error');
+    } finally {
+      // Clear pending state
+      setPendingUpdates(prev => {
+        const next = new Set(prev);
+        next.delete(clientId);
+        return next;
+      });
     }
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-        <div className="text-gray-400">Loading...</div>
-      </div>
-    );
+    return <TrainerClientsSkeleton />;
   }
 
   if (error) {
@@ -140,6 +167,7 @@ export default function ManageClientsPage() {
               name={client.name}
               sessionsRemaining={client.sessionsRemaining}
               onAdjustSessions={(delta) => handleAdjustSessions(client.id, delta)}
+              isPending={pendingUpdates.has(client.id)}
             />
           ))
         )}

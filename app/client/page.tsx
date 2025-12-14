@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ClientCard } from '@/components/client-card';
 import { ErrorState } from '@/components/ui/error-state';
+import { ClientSelectionSkeleton } from '@/components/skeletons/client-selection-skeleton';
 
 interface Client {
   id: number;
@@ -50,11 +51,7 @@ export default function ClientSelection() {
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-        <div className="text-gray-400">Loading...</div>
-      </div>
-    );
+    return <ClientSelectionSkeleton />;
   }
 
   if (error) {

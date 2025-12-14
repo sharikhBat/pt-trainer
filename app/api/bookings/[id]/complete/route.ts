@@ -7,10 +7,21 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    await completeBooking(parseInt(id));
+    const result = await completeBooking(parseInt(id));
+
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.error || 'Failed to complete booking' },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error completing booking:', error);
-    return NextResponse.json({ error: 'Failed to complete booking' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Something went wrong. Session may not have been marked complete.' },
+      { status: 500 }
+    );
   }
 }

@@ -11,9 +11,10 @@ interface SessionListProps {
   sessions: Session[];
   onCancel: (id: number) => void;
   isLoading?: boolean;
+  cancellingId?: number | null;
 }
 
-export function SessionList({ sessions, onCancel, isLoading }: SessionListProps) {
+export function SessionList({ sessions, onCancel, isLoading, cancellingId }: SessionListProps) {
   const formatSession = (datetime: Date | string) => {
     const date = new Date(datetime);
     const today = new Date();
@@ -62,9 +63,9 @@ export function SessionList({ sessions, onCancel, isLoading }: SessionListProps)
               variant="danger"
               size="sm"
               onClick={() => onCancel(session.id)}
-              disabled={isLoading}
+              disabled={isLoading || cancellingId !== null}
             >
-              Cancel
+              {cancellingId === session.id ? 'Cancelling...' : 'Cancel'}
             </Button>
           </div>
         );

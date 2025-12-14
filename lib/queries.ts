@@ -26,8 +26,24 @@ export async function updateClientSessions(id: number, sessionsRemaining: number
   return result[0];
 }
 
-export async function deleteClient(id: number): Promise<void> {
-  await db.delete(clients).where(eq(clients.id, id));
+export async function deleteClient(id: number): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Use a transaction to delete client and their bookings together
+    await db.transaction(async (tx) => {
+      // First delete all bookings for this client
+      await tx.delete(bookings).where(eq(bookings.clientId, id));
+      // Then delete the client
+      await tx.delete(clients).where(eq(clients.id, id));
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting client:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to delete client'
+    };
+  }
 }
 
 // ============ BOOKINGS ============
@@ -127,22 +143,58 @@ export async function createBooking(clientId: number, datetime: Date): Promise<B
   return result[0];
 }
 
-export async function cancelBooking(id: number): Promise<void> {
-  await db.update(bookings).set({ status: 'cancelled' }).where(eq(bookings.id, id));
+export async function cancelBooking(id: number): Promise<{ success: boolean; error?: string }> {
+  try {
+    const result = await db.update(bookings)
+      .set({ status: 'cancelled' })
+      .where(eq(bookings.id, id))
+      .returning();
+
+    if (result.length === 0) {
+      return { success: false, error: 'Booking not found' };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error cancelling booking:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to cancel booking'
+    };
+  }
 }
 
-export async function completeBooking(id: number): Promise<void> {
-  // Get the booking to find the client
-  const booking = await db.select().from(bookings).where(eq(bookings.id, id));
-  if (booking.length === 0) return;
+export async function completeBooking(id: number): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Use a transaction to ensure both operations succeed or both fail
+    await db.transaction(async (tx) => {
+      // Get the booking to find the client
+      const booking = await tx.select().from(bookings).where(eq(bookings.id, id));
+      if (booking.length === 0) {
+        throw new Error('Booking not found');
+      }
 
-  // Mark as completed
-  await db.update(bookings).set({ status: 'completed' }).where(eq(bookings.id, id));
+      if (booking[0].status === 'completed') {
+        throw new Error('Booking already completed');
+      }
 
-  // Deduct session from client
-  await db.update(clients)
-    .set({ sessionsRemaining: sql`GREATEST(${clients.sessionsRemaining} - 1, 0)` })
-    .where(eq(clients.id, booking[0].clientId));
+      // Mark as completed
+      await tx.update(bookings).set({ status: 'completed' }).where(eq(bookings.id, id));
+
+      // Deduct session from client
+      await tx.update(clients)
+        .set({ sessionsRemaining: sql`GREATEST(${clients.sessionsRemaining} - 1, 0)` })
+        .where(eq(clients.id, booking[0].clientId));
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error completing booking:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to complete booking'
+    };
+  }
 }
 
 export async function getInProgressBookings(): Promise<(Booking & { clientName: string })[]> {
