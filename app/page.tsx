@@ -46,7 +46,7 @@ export default function Home() {
           size="xl"
           fullWidth
           onClick={() => handleSelection('client')}
-          className="h-24 text-xl"
+          className="h-24 text-xl uppercase tracking-widest font-semibold"
         >
           Client
         </Button>
@@ -56,7 +56,7 @@ export default function Home() {
           fullWidth
           variant="secondary"
           onClick={() => handleSelection('trainer')}
-          className="h-24 text-xl"
+          className="h-24 text-xl uppercase tracking-widest font-semibold"
         >
           Trainer
         </Button>
