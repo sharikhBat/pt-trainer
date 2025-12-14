@@ -1,0 +1,74 @@
+'use client';
+
+import { Button } from './button';
+
+interface ErrorStateProps {
+  title?: string;
+  message?: string;
+  onRetry?: () => void;
+  onGoHome?: () => void;
+  showRetry?: boolean;
+  showGoHome?: boolean;
+}
+
+export function ErrorState({
+  title = "Something went wrong",
+  message = "We couldn't load this page. This might be a temporary issue.",
+  onRetry,
+  onGoHome,
+  showRetry = true,
+  showGoHome = true,
+}: ErrorStateProps) {
+  return (
+    <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-6">
+      <div className="max-w-sm w-full text-center">
+        {/* Friendly illustration - simple circle with warning */}
+        <div className="mx-auto w-20 h-20 bg-orange-900/30 rounded-full flex items-center justify-center mb-6">
+          <svg
+            className="w-10 h-10 text-orange-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+            />
+          </svg>
+        </div>
+
+        <h1 className="text-xl font-semibold text-white mb-2">
+          {title}
+        </h1>
+
+        <p className="text-gray-400 mb-8">
+          {message}
+        </p>
+
+        <div className="space-y-3">
+          {showRetry && onRetry && (
+            <Button
+              onClick={onRetry}
+              variant="primary"
+              fullWidth
+            >
+              Try Again
+            </Button>
+          )}
+
+          {showGoHome && onGoHome && (
+            <Button
+              onClick={onGoHome}
+              variant="secondary"
+              fullWidth
+            >
+              Go to Home
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
