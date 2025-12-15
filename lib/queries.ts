@@ -62,6 +62,25 @@ export async function updateClientPin(id: number, pin: string): Promise<Client |
   return result[0];
 }
 
+export async function updateClientName(id: number, name: string): Promise<Client | undefined> {
+  const result = await db.update(clients)
+    .set({ name })
+    .where(eq(clients.id, id))
+    .returning();
+  return result[0];
+}
+
+export async function isClientNameTaken(name: string, excludeId?: number): Promise<boolean> {
+  const existing = await db.select()
+    .from(clients)
+    .where(eq(clients.name, name));
+
+  if (excludeId) {
+    return existing.some(c => c.id !== excludeId);
+  }
+  return existing.length > 0;
+}
+
 export async function updateClientSessions(id: number, sessionsRemaining: number): Promise<Client | undefined> {
   const result = await db.update(clients)
     .set({ sessionsRemaining })

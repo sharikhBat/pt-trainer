@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllClients, createClient } from '@/lib/queries';
+import { getAllClients, createClient, isClientNameTaken } from '@/lib/queries';
 
 export async function GET(request: NextRequest) {
   try {
@@ -29,9 +29,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
     }
 
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      return NextResponse.json({ error: 'Name cannot be empty' }, { status: 400 });
+    }
+
+    // Check for duplicate name
+    const nameTaken = await isClientNameTaken(trimmedName);
+    if (nameTaken) {
+      return NextResponse.json({ error: 'A client with this name already exists' }, { status: 409 });
+    }
+
     const sessions = parseInt(sessionsRemaining) || 0;
     const clientPin = pin || '0000';
-    const client = await createClient(name.trim(), sessions, clientPin);
+    const client = await createClient(trimmedName, sessions, clientPin);
 
     return NextResponse.json(client, { status: 201 });
   } catch (error) {

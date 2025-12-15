@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 
 export default function Home() {
   const router = useRouter();
+  const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
     // Check localStorage for previous selection
@@ -13,13 +14,18 @@ export default function Home() {
     if (userType === 'trainer') {
       const trainerAuth = localStorage.getItem('pt-trainer-auth');
       if (trainerAuth) {
-        const auth = JSON.parse(trainerAuth);
-        if (auth.authenticated && auth.expires > Date.now()) {
-          router.replace('/trainer/dashboard');
-          return;
+        try {
+          const auth = JSON.parse(trainerAuth);
+          if (auth.authenticated && auth.expires > Date.now()) {
+            router.replace('/trainer/dashboard');
+            return;
+          }
+        } catch {
+          // Invalid auth data, continue to show buttons
         }
       }
       router.replace('/trainer');
+      return;
     } else if (userType === 'client') {
       const clientId = localStorage.getItem('pt-client-id');
       if (clientId) {
@@ -27,7 +33,10 @@ export default function Home() {
       } else {
         router.replace('/client');
       }
+      return;
     }
+    // No stored preference, show buttons
+    setIsChecking(false);
   }, [router]);
 
   const handleSelection = (type: 'trainer' | 'client') => {
@@ -38,6 +47,11 @@ export default function Home() {
       router.push('/client');
     }
   };
+
+  // Show blank screen while checking localStorage (prevents button flash)
+  if (isChecking) {
+    return <div className="min-h-screen bg-[#0a0a0a]" />;
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center p-6">

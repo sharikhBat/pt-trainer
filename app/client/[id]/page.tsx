@@ -6,6 +6,7 @@ import { SlotPicker } from '@/components/slot-picker';
 import { SessionList } from '@/components/session-list';
 import { useToast } from '@/components/ui/toast';
 import { ErrorState } from '@/components/ui/error-state';
+import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { ClientBookingSkeleton } from '@/components/skeletons/client-booking-skeleton';
 
 interface Client {
@@ -44,6 +45,7 @@ export default function ClientBookingPage() {
   const [isBooking, setIsBooking] = useState(false);
   const [cancellingId, setCancellingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirmCancelBooking, setConfirmCancelBooking] = useState<Booking | null>(null);
 
   const clientId = params.id as string;
 
@@ -173,12 +175,22 @@ export default function ClientBookingPage() {
     }
   };
 
-  const handleCancelBooking = async (bookingId: number) => {
-    if (cancellingId !== null) return; // Prevent double clicks
+  // Show confirmation dialog before cancelling
+  const handleCancelBooking = (bookingId: number) => {
+    const booking = bookings.find(b => b.id === bookingId);
+    if (booking) {
+      setConfirmCancelBooking(booking);
+    }
+  };
 
-    // Store the booking before removing from UI (for potential rollback)
-    const bookingToCancel = bookings.find(b => b.id === bookingId);
+  // Actually cancel the booking after confirmation
+  const handleConfirmCancel = async () => {
+    if (!confirmCancelBooking || cancellingId !== null) return;
 
+    const bookingId = confirmCancelBooking.id;
+    const bookingToCancel = confirmCancelBooking;
+
+    setConfirmCancelBooking(null);
     setCancellingId(bookingId);
 
     // Optimistically remove from UI
@@ -196,27 +208,31 @@ export default function ClientBookingPage() {
       } else {
         const data = await response.json();
         // Rollback: restore the booking to UI
-        if (bookingToCancel) {
-          setBookings(prev => [...prev, bookingToCancel].sort((a, b) => {
-            if (a.date !== b.date) return a.date.localeCompare(b.date);
-            return a.hour - b.hour;
-          }));
-        }
+        setBookings(prev => [...prev, bookingToCancel].sort((a, b) => {
+          if (a.date !== b.date) return a.date.localeCompare(b.date);
+          return a.hour - b.hour;
+        }));
         showToast(data.error || 'Couldn\'t cancel session. Please try again.', 'error');
       }
     } catch (error) {
       console.error('Error cancelling booking:', error);
       // Rollback: restore the booking to UI
-      if (bookingToCancel) {
-        setBookings(prev => [...prev, bookingToCancel].sort((a, b) => {
-          if (a.date !== b.date) return a.date.localeCompare(b.date);
-          return a.hour - b.hour;
-        }));
-      }
+      setBookings(prev => [...prev, bookingToCancel].sort((a, b) => {
+        if (a.date !== b.date) return a.date.localeCompare(b.date);
+        return a.hour - b.hour;
+      }));
       showToast('Something went wrong. Please try again.', 'error');
     } finally {
       setCancellingId(null);
     }
+  };
+
+  const formatBookingForConfirm = (booking: Booking) => {
+    const displayDate = new Date(booking.date + 'T00:00:00');
+    const dayName = displayDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+    const displayHour = booking.hour > 12 ? booking.hour - 12 : booking.hour === 0 ? 12 : booking.hour;
+    const ampm = booking.hour >= 12 ? 'PM' : 'AM';
+    return `${dayName} at ${displayHour}:00 ${ampm}`;
   };
 
   const handleLogout = () => {
@@ -248,6 +264,17 @@ export default function ClientBookingPage() {
     <div className="min-h-screen bg-[#0a0a0a] pb-8">
       {ToastComponent}
 
+      {/* Cancel Confirmation */}
+      <BottomSheet
+        isOpen={!!confirmCancelBooking}
+        onClose={() => setConfirmCancelBooking(null)}
+        title="Cancel this session?"
+        subtitle={confirmCancelBooking ? formatBookingForConfirm(confirmCancelBooking) : undefined}
+        confirmLabel="Yes, Cancel"
+        onConfirm={handleConfirmCancel}
+        variant="danger"
+      />
+
       {/* Header */}
       <div className="bg-[#141414] border-b border-[#262626] px-6 py-5">
         <div className="max-w-md mx-auto">
@@ -272,18 +299,23 @@ export default function ClientBookingPage() {
 
       <div className="max-w-md mx-auto px-6 space-y-8 mt-6">
         {/* Book a Slot Section */}
-        {client.sessionsRemaining > 0 && (
-          <section>
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
-              Book a Slot
-            </h2>
+        <section>
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
+            Book a Slot
+          </h2>
+          {client.sessionsRemaining > 0 ? (
             <SlotPicker
               availability={availability}
               onSelectSlot={handleBookSlot}
               isLoading={isBooking}
             />
-          </section>
-        )}
+          ) : (
+            <div className="bg-[#141414] border border-[#262626] rounded-xl p-6 text-center">
+              <p className="text-gray-400 font-medium">No sessions remaining</p>
+              <p className="text-gray-500 text-sm mt-2">Contact your trainer to add more sessions</p>
+            </div>
+          )}
+        </section>
 
         {/* Upcoming Sessions Section */}
         <section>

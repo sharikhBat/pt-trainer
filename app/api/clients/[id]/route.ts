@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getClient, updateClientSessions, updateClientPin, deleteClient } from '@/lib/queries';
+import { getClient, updateClientSessions, updateClientPin, updateClientName, isClientNameTaken, deleteClient } from '@/lib/queries';
 
 export async function GET(
   request: NextRequest,
@@ -26,15 +26,33 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
+    const numId = parseInt(id);
     const body = await request.json();
-    const { sessionsRemaining, pin } = body;
+    const { sessionsRemaining, pin, name } = body;
+
+    // Handle name update
+    if (name !== undefined) {
+      const trimmedName = name.trim();
+      if (!trimmedName) {
+        return NextResponse.json({ error: 'Name cannot be empty' }, { status: 400 });
+      }
+      const nameTaken = await isClientNameTaken(trimmedName, numId);
+      if (nameTaken) {
+        return NextResponse.json({ error: 'A client with this name already exists' }, { status: 409 });
+      }
+      const client = await updateClientName(numId, trimmedName);
+      if (!client) {
+        return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+      }
+      return NextResponse.json(client);
+    }
 
     // Handle PIN update
     if (pin !== undefined) {
       if (typeof pin !== 'string' || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
         return NextResponse.json({ error: 'PIN must be a 4-digit number' }, { status: 400 });
       }
-      const client = await updateClientPin(parseInt(id), pin);
+      const client = await updateClientPin(numId, pin);
       if (!client) {
         return NextResponse.json({ error: 'Client not found' }, { status: 404 });
       }
@@ -46,7 +64,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Invalid sessions count' }, { status: 400 });
     }
 
-    const client = await updateClientSessions(parseInt(id), sessionsRemaining);
+    const client = await updateClientSessions(numId, sessionsRemaining);
 
     if (!client) {
       return NextResponse.json({ error: 'Client not found' }, { status: 404 });

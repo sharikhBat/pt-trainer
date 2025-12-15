@@ -29,6 +29,10 @@ export default function ManageClientsPage() {
   const [editingPinId, setEditingPinId] = useState<number | null>(null);
   const [editingPinValue, setEditingPinValue] = useState('');
 
+  // Name editing state
+  const [editingNameId, setEditingNameId] = useState<number | null>(null);
+  const [editingNameValue, setEditingNameValue] = useState('');
+
   // Delete confirmation state
   const [deleteClient, setDeleteClient] = useState<Client | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -165,6 +169,54 @@ export default function ManageClientsPage() {
     setEditingPinValue('');
   };
 
+  const handleEditName = (client: Client) => {
+    setEditingNameId(client.id);
+    setEditingNameValue(client.name);
+  };
+
+  const handleSaveName = async (clientId: number) => {
+    const trimmedName = editingNameValue.trim();
+    if (!trimmedName) {
+      showToast('Name cannot be empty', 'error');
+      return;
+    }
+
+    setPendingUpdates(prev => new Set([...prev, clientId]));
+
+    try {
+      const response = await fetch(`/api/clients/${clientId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmedName }),
+      });
+
+      if (response.ok) {
+        setClients(prev =>
+          prev.map(c => c.id === clientId ? { ...c, name: trimmedName } : c)
+        );
+        showToast('Name updated', 'success');
+        setEditingNameId(null);
+        setEditingNameValue('');
+      } else {
+        const data = await response.json();
+        showToast(data.error || 'Failed to update name', 'error');
+      }
+    } catch {
+      showToast('Something went wrong', 'error');
+    } finally {
+      setPendingUpdates(prev => {
+        const next = new Set(prev);
+        next.delete(clientId);
+        return next;
+      });
+    }
+  };
+
+  const handleCancelEditName = () => {
+    setEditingNameId(null);
+    setEditingNameValue('');
+  };
+
   const handleDeleteClick = (client: Client) => {
     setDeleteClient(client);
   };
@@ -253,17 +305,51 @@ export default function ManageClientsPage() {
             const isLowSessions = client.sessionsRemaining <= 3;
             const isPending = pendingUpdates.has(client.id);
             const isEditingPin = editingPinId === client.id;
+            const isEditingName = editingNameId === client.id;
 
             return (
               <Card key={client.id} padding="md" className="space-y-3">
-                {/* Name and Delete */}
+                {/* Name Row */}
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-white text-lg">{client.name}</span>
-                    {isLowSessions && client.sessionsRemaining > 0 && (
-                      <span className="text-accent-hover" title="Low sessions">⚠️</span>
-                    )}
-                  </div>
+                  {isEditingName ? (
+                    <div className="flex items-center gap-2 flex-1 mr-2">
+                      <input
+                        type="text"
+                        value={editingNameValue}
+                        onChange={(e) => setEditingNameValue(e.target.value)}
+                        className="flex-1 px-2 py-1 bg-[#262626] border border-[#333] rounded text-white text-sm focus:border-accent focus:outline-none"
+                        autoFocus
+                        autoCapitalize="words"
+                      />
+                      <button
+                        onClick={() => handleSaveName(client.id)}
+                        disabled={isPending || !editingNameValue.trim()}
+                        className="text-accent text-sm font-medium hover:text-accent-hover disabled:opacity-50"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={handleCancelEditName}
+                        disabled={isPending}
+                        className="text-gray-500 text-sm hover:text-gray-400 disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-white text-lg">{client.name}</span>
+                      {isLowSessions && client.sessionsRemaining > 0 && (
+                        <span className="text-accent-hover" title="Low sessions">⚠️</span>
+                      )}
+                      <button
+                        onClick={() => handleEditName(client)}
+                        className="text-gray-500 text-xs hover:text-gray-400 ml-1"
+                      >
+                        ✎
+                      </button>
+                    </div>
+                  )}
                   <button
                     onClick={() => handleDeleteClick(client)}
                     className="text-red-400/70 text-sm hover:text-red-400 px-2 py-1"
