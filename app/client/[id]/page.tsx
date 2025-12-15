@@ -16,7 +16,8 @@ interface Client {
 
 interface Booking {
   id: number;
-  datetime: string;
+  date: string;
+  hour: number;
 }
 
 type SlotStatus = 'available' | 'booked' | 'blocked' | 'past';
@@ -133,18 +134,22 @@ export default function ClientBookingPage() {
     ));
 
     try {
-      const datetime = new Date(`${date}T${time}:00`);
+      // Extract hour from time string (e.g., "21:00" -> 21)
+      const hour = parseInt(time.split(':')[0]);
 
       const response = await fetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId: client.id, datetime: datetime.toISOString() }),
+        body: JSON.stringify({ clientId: client.id, date, hour }),
       });
 
       if (response.ok) {
-        const dayName = datetime.toLocaleDateString('en-US', { weekday: 'long' });
-        const timeStr = datetime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-        showToast(`Booked for ${dayName} at ${timeStr}`, 'success');
+        // Format for toast message
+        const displayDate = new Date(date + 'T00:00:00');
+        const dayName = displayDate.toLocaleDateString('en-US', { weekday: 'long' });
+        const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        showToast(`Booked for ${dayName} at ${displayHour}:00 ${ampm}`, 'success');
         await fetchData(); // Refresh to update availability
       } else {
         const data = await response.json();
@@ -192,9 +197,10 @@ export default function ClientBookingPage() {
         const data = await response.json();
         // Rollback: restore the booking to UI
         if (bookingToCancel) {
-          setBookings(prev => [...prev, bookingToCancel].sort(
-            (a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime()
-          ));
+          setBookings(prev => [...prev, bookingToCancel].sort((a, b) => {
+            if (a.date !== b.date) return a.date.localeCompare(b.date);
+            return a.hour - b.hour;
+          }));
         }
         showToast(data.error || 'Couldn\'t cancel session. Please try again.', 'error');
       }
@@ -202,9 +208,10 @@ export default function ClientBookingPage() {
       console.error('Error cancelling booking:', error);
       // Rollback: restore the booking to UI
       if (bookingToCancel) {
-        setBookings(prev => [...prev, bookingToCancel].sort(
-          (a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime()
-        ));
+        setBookings(prev => [...prev, bookingToCancel].sort((a, b) => {
+          if (a.date !== b.date) return a.date.localeCompare(b.date);
+          return a.hour - b.hour;
+        }));
       }
       showToast('Something went wrong. Please try again.', 'error');
     } finally {

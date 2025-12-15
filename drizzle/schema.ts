@@ -11,7 +11,8 @@ export const clients = pgTable('clients', {
 export const bookings = pgTable('bookings', {
   id: serial('id').primaryKey(),
   clientId: integer('client_id').references(() => clients.id).notNull(),
-  datetime: timestamp('datetime').notNull(),
+  date: text('date').notNull(),        // "2025-12-15" format (IST date)
+  hour: integer('hour').notNull(),     // 0-23, e.g., 21 for 9pm IST
   status: text('status').notNull().default('upcoming'), // upcoming, completed, cancelled
   createdAt: timestamp('created_at').defaultNow(),
 });

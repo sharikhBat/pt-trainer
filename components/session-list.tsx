@@ -4,7 +4,8 @@ import { Button } from './ui/button';
 
 interface Session {
   id: number;
-  datetime: Date | string;
+  date: string;
+  hour: number;
 }
 
 interface SessionListProps {
@@ -15,25 +16,29 @@ interface SessionListProps {
 }
 
 export function SessionList({ sessions, onCancel, isLoading, cancellingId }: SessionListProps) {
-  const formatSession = (datetime: Date | string) => {
-    const date = new Date(datetime);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
+  const formatSession = (date: string, hour: number) => {
+    // Get today and tomorrow for comparison
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const sessionDate = new Date(date);
-    sessionDate.setHours(0, 0, 0, 0);
+    const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
 
     let dayStr: string;
-    if (sessionDate.getTime() === today.getTime()) {
+    if (date === todayStr) {
       dayStr = 'Today';
-    } else if (sessionDate.getTime() === tomorrow.getTime()) {
+    } else if (date === tomorrowStr) {
       dayStr = 'Tomorrow';
     } else {
-      dayStr = date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+      // Format the date for display
+      const displayDate = new Date(date + 'T00:00:00');
+      dayStr = displayDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
     }
 
-    const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    // Format hour for display (e.g., 21 -> "9:00 PM")
+    const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const timeStr = `${displayHour}:00 ${ampm}`;
 
     return { dayStr, timeStr };
   };
@@ -49,7 +54,7 @@ export function SessionList({ sessions, onCancel, isLoading, cancellingId }: Ses
   return (
     <div className="space-y-2">
       {sessions.map((session) => {
-        const { dayStr, timeStr } = formatSession(session.datetime);
+        const { dayStr, timeStr } = formatSession(session.date, session.hour);
         return (
           <div
             key={session.id}

@@ -12,7 +12,8 @@ import { TrainerDashboardSkeleton } from '@/components/skeletons/trainer-dashboa
 
 interface BookingWithClient {
   id: number;
-  datetime: string;
+  date: string;
+  hour: number;
   clientName: string;
   clientSessions: number;
   status?: string;
@@ -20,7 +21,8 @@ interface BookingWithClient {
 
 interface InProgressBooking {
   id: number;
-  datetime: string;
+  date: string;
+  hour: number;
   clientName: string;
 }
 
@@ -209,41 +211,40 @@ export default function TrainerDashboard() {
 
   // Group bookings by date
   const groupedBookings: GroupedBookings = bookings.reduce((acc, booking) => {
-    const date = new Date(booking.datetime).toISOString().split('T')[0];
-    if (!acc[date]) {
-      acc[date] = [];
+    if (!acc[booking.date]) {
+      acc[booking.date] = [];
     }
-    acc[date].push(booking);
+    acc[booking.date].push(booking);
     return acc;
   }, {} as GroupedBookings);
 
   const formatDateHeader = (dateStr: string) => {
-    const date = new Date(dateStr + 'T00:00:00');
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
 
     let dayLabel: string;
-    if (date.getTime() === today.getTime()) {
+    if (dateStr === todayStr) {
       dayLabel = 'Today';
-    } else if (date.getTime() === tomorrow.getTime()) {
+    } else if (dateStr === tomorrowStr) {
       dayLabel = 'Tomorrow';
     } else {
+      const date = new Date(dateStr + 'T00:00:00');
       dayLabel = date.toLocaleDateString('en-US', { weekday: 'long' });
     }
 
+    const date = new Date(dateStr + 'T00:00:00');
     const dateLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
     return `${dayLabel} - ${dateLabel}`;
   };
 
-  const formatTime = (datetime: string) => {
-    return new Date(datetime).toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
+  const formatTime = (hour: number) => {
+    const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    return `${displayHour}:00 ${ampm}`;
   };
 
   if (isLoading) {
@@ -263,12 +264,10 @@ export default function TrainerDashboard() {
 
   const sortedDates = Object.keys(groupedBookings).sort();
 
-  const formatTimeForModal = (datetime: string) => {
-    return new Date(datetime).toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
+  const formatTimeForModal = (hour: number) => {
+    const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    return `${displayHour}:00 ${ampm}`;
   };
 
   return (
@@ -279,7 +278,7 @@ export default function TrainerDashboard() {
       <BottomSheet
         isOpen={showCompletionSheet}
         onClose={handleDismissCompletion}
-        subtitle={inProgressBooking ? `${formatTimeForModal(inProgressBooking.datetime)} session` : undefined}
+        subtitle={inProgressBooking ? `${formatTimeForModal(inProgressBooking.hour)} session` : undefined}
         title={`Mark ${inProgressBooking?.clientName} complete?`}
         confirmLabel="Complete Session"
         cancelLabel="Cancel Session"
@@ -341,7 +340,7 @@ export default function TrainerDashboard() {
                           isCompleted ? 'text-emerald-500' :
                           isCancelled ? 'text-red-400/70 line-through' : 'text-gray-500'
                         }`} suppressHydrationWarning>
-                          {formatTime(booking.datetime)}
+                          {formatTime(booking.hour)}
                         </span>
                         <div className="flex items-center gap-2">
                           <span className={`font-medium ${

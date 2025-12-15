@@ -27,34 +27,29 @@ async function seedTestBookings() {
   const shariq = shariqResults[0];
   console.log(`Found Shariq with ID: ${shariq.id}`);
 
-  // Create bookings for today at 5pm and 6pm
+  // Get today's date string
   const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
-  // 5pm today
-  const fivePM = new Date(today);
-  fivePM.setHours(17, 0, 0, 0);
-
-  // 6pm today
-  const sixPM = new Date(today);
-  sixPM.setHours(18, 0, 0, 0);
-
-  // Insert bookings
+  // Insert bookings for 5pm and 6pm
   const booking1 = await db.insert(bookings).values({
     clientId: shariq.id,
-    datetime: fivePM,
+    date: todayStr,
+    hour: 17, // 5pm
     status: 'upcoming',
   }).returning();
   console.log(`✓ Created 5pm booking: ${booking1[0].id}`);
 
   const booking2 = await db.insert(bookings).values({
     clientId: shariq.id,
-    datetime: sixPM,
+    date: todayStr,
+    hour: 18, // 6pm
     status: 'upcoming',
   }).returning();
   console.log(`✓ Created 6pm booking: ${booking2[0].id}`);
 
   console.log('Test bookings created!');
-  console.log(`\nBookings for ${today.toDateString()}:`);
+  console.log(`\nBookings for ${todayStr}:`);
   console.log(`- 5:00 PM with Shariq`);
   console.log(`- 6:00 PM with Shariq`);
 
