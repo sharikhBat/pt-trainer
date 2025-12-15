@@ -1,0 +1,1 @@
+ALTER TABLE "clients" ADD COLUMN "pin" text DEFAULT '0000' NOT NULL;

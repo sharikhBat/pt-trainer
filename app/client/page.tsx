@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { ClientCard } from '@/components/client-card';
+import { PinModal } from '@/components/pin-modal';
 import { ErrorState } from '@/components/ui/error-state';
 import { ClientSelectionSkeleton } from '@/components/skeletons/client-selection-skeleton';
 
@@ -12,15 +13,49 @@ interface Client {
   sessionsRemaining: number;
 }
 
+interface ClientSession {
+  clientId: number;
+  clientName: string;
+  verified: boolean;
+  timestamp: number;
+}
+
 export default function ClientSelection() {
   const router = useRouter();
   const [clients, setClients] = useState<Client[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+
+  // Check for existing session on mount
+  const checkExistingSession = useCallback(() => {
+    const sessionData = localStorage.getItem('pt-client-session');
+    if (sessionData) {
+      try {
+        const session: ClientSession = JSON.parse(sessionData);
+        // Session valid for 30 days
+        const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+        if (session.verified && session.timestamp > Date.now() - thirtyDays) {
+          router.replace(`/client/${session.clientId}`);
+          return true;
+        } else {
+          // Session expired, clear it
+          localStorage.removeItem('pt-client-session');
+        }
+      } catch {
+        localStorage.removeItem('pt-client-session');
+      }
+    }
+    return false;
+  }, [router]);
 
   useEffect(() => {
-    fetchClients();
-  }, []);
+    const hasSession = checkExistingSession();
+    if (!hasSession) {
+      fetchClients();
+    }
+  }, [checkExistingSession]);
 
   const fetchClients = async () => {
     try {
@@ -40,13 +75,50 @@ export default function ClientSelection() {
   };
 
   const handleSelectClient = (client: Client) => {
-    localStorage.setItem('pt-client-id', client.id.toString());
-    router.push(`/client/${client.id}`);
+    setSelectedClient(client);
+  };
+
+  const handleVerifyPin = async (pin: string): Promise<boolean> => {
+    if (!selectedClient) return false;
+
+    setIsVerifying(true);
+    try {
+      const response = await fetch('/api/clients/verify-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId: selectedClient.id, pin }),
+      });
+
+      if (response.ok) {
+        // Save session to localStorage
+        const session: ClientSession = {
+          clientId: selectedClient.id,
+          clientName: selectedClient.name,
+          verified: true,
+          timestamp: Date.now(),
+        };
+        localStorage.setItem('pt-client-session', JSON.stringify(session));
+        localStorage.setItem('pt-client-id', selectedClient.id.toString());
+
+        router.push(`/client/${selectedClient.id}`);
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleCancelPin = () => {
+    setSelectedClient(null);
   };
 
   const handleBack = () => {
     localStorage.removeItem('pt-user-type');
     localStorage.removeItem('pt-client-id');
+    localStorage.removeItem('pt-client-session');
     router.push('/');
   };
 
@@ -67,6 +139,15 @@ export default function ClientSelection() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] p-6">
+      {selectedClient && (
+        <PinModal
+          clientName={selectedClient.name}
+          onVerify={handleVerifyPin}
+          onCancel={handleCancelPin}
+          isVerifying={isVerifying}
+        />
+      )}
+
       <div className="max-w-md mx-auto">
         <button
           onClick={handleBack}

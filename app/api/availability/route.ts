@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getAvailableSlots } from '@/lib/queries';
+import { getAllSlotsWithStatus } from '@/lib/queries';
 
 export async function GET() {
   try {
-    const availability = await getAvailableSlots(7);
+    const availability = await getAllSlotsWithStatus(7);
     return NextResponse.json(availability);
   } catch (error) {
     console.error('Error fetching availability:', error);

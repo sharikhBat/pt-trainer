@@ -8,7 +8,9 @@ async function seedTestBookings() {
     throw new Error('DATABASE_URL environment variable is not set');
   }
 
-  const sql = postgres(process.env.DATABASE_URL, { ssl: 'require' });
+  const connectionString = process.env.DATABASE_URL;
+  const isLocal = connectionString.includes('localhost') || connectionString.includes('127.0.0.1');
+  const sql = postgres(connectionString, isLocal ? {} : { ssl: 'require' });
   const db = drizzle(sql);
 
   console.log('Adding test bookings...');

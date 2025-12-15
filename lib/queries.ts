@@ -13,8 +13,22 @@ export async function getClient(id: number): Promise<Client | undefined> {
   return result[0];
 }
 
-export async function createClient(name: string, sessionsRemaining: number): Promise<Client> {
-  const result = await db.insert(clients).values({ name, sessionsRemaining }).returning();
+export async function createClient(name: string, sessionsRemaining: number, pin: string = '0000'): Promise<Client> {
+  const result = await db.insert(clients).values({ name, sessionsRemaining, pin }).returning();
+  return result[0];
+}
+
+export async function verifyClientPin(clientId: number, pin: string): Promise<boolean> {
+  const result = await db.select({ pin: clients.pin }).from(clients).where(eq(clients.id, clientId));
+  if (result.length === 0) return false;
+  return result[0].pin === pin;
+}
+
+export async function updateClientPin(id: number, pin: string): Promise<Client | undefined> {
+  const result = await db.update(clients)
+    .set({ pin })
+    .where(eq(clients.id, id))
+    .returning();
   return result[0];
 }
 
@@ -276,8 +290,32 @@ export async function createBlockedTime(startTime: string, endTime: string, dayO
 
 // ============ AVAILABILITY ============
 
-export async function getAvailableSlots(days: number = 7): Promise<{ date: string; slots: string[] }[]> {
-  const blocked = await getBlockedTimes();
+export type SlotStatus = 'available' | 'booked' | 'blocked' | 'past';
+
+export interface SlotWithStatus {
+  time: string;
+  status: SlotStatus;
+}
+
+export interface DayAvailability {
+  date: string;
+  slots: SlotWithStatus[];
+}
+
+// Define blocked time ranges (hours where booking is not allowed)
+// 6am-11am (hours 6-11): blocked
+// 12pm-4pm (hours 12-16): available (unless booked)
+// 5pm-8pm (hours 17-20): blocked
+// 9pm (hour 21): available (unless booked)
+function isHourBlocked(hour: number): boolean {
+  // Morning blocked: 6am to 11am (hours 6-11 inclusive)
+  if (hour >= 6 && hour <= 11) return true;
+  // Evening blocked: 5pm to 8pm (hours 17-20 inclusive)
+  if (hour >= 17 && hour <= 20) return true;
+  return false;
+}
+
+export async function getAllSlotsWithStatus(days: number = 7): Promise<DayAvailability[]> {
   const now = new Date();
   const futureDate = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
 
@@ -291,59 +329,62 @@ export async function getAvailableSlots(days: number = 7): Promise<{ date: strin
     })
   );
 
-  const availability: { date: string; slots: string[] }[] = [];
-  const workingHours = { start: 6, end: 22 }; // 6 AM to 10 PM
+  const availability: DayAvailability[] = [];
+  const workingHours = { start: 6, end: 22 }; // 6 AM to 10 PM (last slot at 9pm/21:00)
 
   for (let d = 0; d < days; d++) {
     const date = new Date(now);
     date.setDate(date.getDate() + d);
     date.setHours(0, 0, 0, 0);
 
-    const dayOfWeek = date.getDay();
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     const dateStr = `${year}-${month}-${day}`;
-    const slots: string[] = [];
+    const slots: SlotWithStatus[] = [];
 
     for (let hour = workingHours.start; hour < workingHours.end; hour++) {
       const slotTime = new Date(date);
       slotTime.setHours(hour, 0, 0, 0);
 
-      // Skip if in the past (with 1 hour buffer)
-      if (slotTime.getTime() <= now.getTime()) continue;
-
-      // Check if slot is blocked
       const timeStr = `${hour.toString().padStart(2, '0')}:00`;
-      const isBlocked = blocked.some(b => {
-        const matchesDay = b.dayOfWeek === null || b.dayOfWeek === dayOfWeek;
-        if (!matchesDay) return false;
-
-        const slotMinutes = hour * 60;
-        const [startH, startM] = b.startTime.split(':').map(Number);
-        const [endH, endM] = b.endTime.split(':').map(Number);
-        const startMinutes = startH * 60 + startM;
-        const endMinutes = endH * 60 + endM;
-
-        return slotMinutes >= startMinutes && slotMinutes < endMinutes;
-      });
-
-      if (isBlocked) continue;
-
-      // Check if already booked by anyone
       const slotKey = `${dateStr}_${hour}`;
-      if (bookedSlots.has(slotKey)) continue;
 
-      slots.push(timeStr);
+      let status: SlotStatus;
+
+      // Check if in the past
+      if (slotTime.getTime() <= now.getTime()) {
+        status = 'past';
+      }
+      // Check if hour is in blocked time range
+      else if (isHourBlocked(hour)) {
+        status = 'blocked';
+      }
+      // Check if already booked by anyone
+      else if (bookedSlots.has(slotKey)) {
+        status = 'booked';
+      }
+      // Otherwise available
+      else {
+        status = 'available';
+      }
+
+      slots.push({ time: timeStr, status });
     }
 
-    // Always include today, even if no slots available
-    if (slots.length > 0 || d === 0) {
-      availability.push({ date: dateStr, slots });
-    }
+    availability.push({ date: dateStr, slots });
   }
 
   return availability;
+}
+
+// Keep the old function for backwards compatibility if needed elsewhere
+export async function getAvailableSlots(days: number = 7): Promise<{ date: string; slots: string[] }[]> {
+  const allSlots = await getAllSlotsWithStatus(days);
+  return allSlots.map(day => ({
+    date: day.date,
+    slots: day.slots.filter(s => s.status === 'available').map(s => s.time)
+  }));
 }
 
 // Check if client already has a booking on a given date

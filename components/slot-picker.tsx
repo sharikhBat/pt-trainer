@@ -2,8 +2,15 @@
 
 import { useState, useMemo, useEffect } from 'react';
 
+type SlotStatus = 'available' | 'booked' | 'blocked' | 'past';
+
+interface SlotWithStatus {
+  time: string;
+  status: SlotStatus;
+}
+
 interface SlotPickerProps {
-  availability: { date: string; slots: string[] }[];
+  availability: { date: string; slots: SlotWithStatus[] }[];
   onSelectSlot: (date: string, time: string) => void;
   isLoading?: boolean;
 }
@@ -21,18 +28,21 @@ export function SlotPicker({ availability, onSelectSlot, isLoading }: SlotPicker
 
     return availability.map(day => {
       if (day.date === todayStr) {
-        // For today, only show slots that are in the future
-        const futureSlots = day.slots.filter(time => {
-          const [hours] = time.split(':').map(Number);
-          return hours > currentHour;
+        // For today, mark slots that have passed as 'past'
+        const updatedSlots = day.slots.map(slot => {
+          const [hours] = slot.time.split(':').map(Number);
+          if (hours <= currentHour) {
+            return { ...slot, status: 'past' as SlotStatus };
+          }
+          return slot;
         });
-        return { ...day, slots: futureSlots };
+        return { ...day, slots: updatedSlots };
       }
       return day;
-    }).filter(day => day.slots.length > 0 || day.date === todayStr);
+    });
   }, [availability]);
 
-  // Update selectedDate if it's no longer valid in filtered availability
+  // Update selectedDate if it's no longer valid
   useEffect(() => {
     if (filteredAvailability.length > 0) {
       const dateExists = filteredAvailability.some(d => d.date === selectedDate);
@@ -64,53 +74,89 @@ export function SlotPicker({ availability, onSelectSlot, isLoading }: SlotPicker
 
   const selectedDaySlots = filteredAvailability.find(d => d.date === selectedDate)?.slots || [];
 
+  // Filter out past slots from display
+  const visibleSlots = selectedDaySlots.filter(slot => slot.status !== 'past');
+
+  // Check if selected day has any available slots
+  const hasAvailableSlots = visibleSlots.some(slot => slot.status === 'available');
+
   if (filteredAvailability.length === 0) {
     return (
       <div className="text-center py-8 text-gray-400">
-        No available slots in the next 7 days
+        No slots to display
       </div>
     );
   }
 
+  const getSlotStyles = (status: SlotStatus) => {
+    switch (status) {
+      case 'available':
+        return 'bg-[#141414] border-[#262626] text-gray-200 hover:bg-accent/20 hover:text-accent-hover hover:border-accent/30 active:bg-accent/30 cursor-pointer';
+      case 'booked':
+        return 'bg-[#1a1a1a] border-[#1f1f1f] text-gray-600 cursor-not-allowed';
+      case 'blocked':
+        return 'bg-[#0f0f0f] border-[#1a1a1a] text-gray-700 cursor-not-allowed';
+      default:
+        return 'bg-[#0f0f0f] border-[#1a1a1a] text-gray-700 cursor-not-allowed';
+    }
+  };
+
   return (
     <div className="space-y-4">
-      {/* Date tabs - horizontal scroll */}
+      {/* Date tabs - horizontal scroll, show all dates */}
       <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
-        {filteredAvailability.map(({ date }) => (
-          <button
-            key={date}
-            onClick={() => setSelectedDate(date)}
-            className={`flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold transition-all min-h-[44px]
-              ${selectedDate === date
-                ? 'bg-accent text-white shadow-lg shadow-accent/20'
-                : 'bg-[#141414] text-gray-300 hover:bg-[#1c1c1c] border border-[#262626]'
-              }`}
-          >
-            {formatDate(date)}
-          </button>
-        ))}
+        {filteredAvailability.map(({ date, slots }) => {
+          const dayHasAvailable = slots.some(s => s.status === 'available');
+          return (
+            <button
+              key={date}
+              onClick={() => setSelectedDate(date)}
+              className={`flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold transition-all min-h-[44px]
+                ${selectedDate === date
+                  ? 'bg-accent text-white shadow-lg shadow-accent/20'
+                  : dayHasAvailable
+                    ? 'bg-[#141414] text-gray-300 hover:bg-[#1c1c1c] border border-[#262626]'
+                    : 'bg-[#0f0f0f] text-gray-500 border border-[#1a1a1a]'
+                }`}
+            >
+              {formatDate(date)}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Time slots grid */}
+      {/* Time slots grid - show all slots with different states */}
       <div className="grid grid-cols-3 gap-2">
-        {selectedDaySlots.map((time) => (
+        {visibleSlots.map((slot) => (
           <button
-            key={time}
-            onClick={() => selectedDate && onSelectSlot(selectedDate, time)}
-            disabled={isLoading}
-            className="py-3 px-2 rounded-xl bg-[#141414] border border-[#262626] text-gray-200 font-medium
-              hover:bg-accent/20 hover:text-accent-hover hover:border-accent/30 active:bg-accent/30
-              transition-all duration-150 min-h-[48px] disabled:opacity-50"
+            key={slot.time}
+            onClick={() => slot.status === 'available' && selectedDate && onSelectSlot(selectedDate, slot.time)}
+            disabled={isLoading || slot.status !== 'available'}
+            className={`relative py-3 px-2 rounded-xl border font-medium transition-all duration-150 min-h-[48px] ${getSlotStyles(slot.status)} ${isLoading ? 'opacity-50' : ''}`}
           >
-            {formatTime(time)}
+            <span className={slot.status !== 'available' ? 'opacity-60' : ''}>
+              {formatTime(slot.time)}
+            </span>
+            {slot.status === 'booked' && (
+              <span className="block text-[10px] text-gray-500 mt-0.5">Booked</span>
+            )}
+            {slot.status === 'blocked' && (
+              <span className="block text-[10px] text-gray-600 mt-0.5">Unavailable</span>
+            )}
           </button>
         ))}
       </div>
 
-      {selectedDaySlots.length === 0 && selectedDate && (
+      {visibleSlots.length === 0 && selectedDate && (
         <div className="text-center py-6 text-gray-500">
-          <p>No slots available</p>
-          <p className="text-sm mt-1">Try another day</p>
+          <p>No slots for this day</p>
+        </div>
+      )}
+
+      {visibleSlots.length > 0 && !hasAvailableSlots && (
+        <div className="text-center py-4 text-gray-500">
+          <p className="text-sm">All slots are taken or unavailable</p>
+          <p className="text-xs mt-1">Try another day</p>
         </div>
       )}
     </div>

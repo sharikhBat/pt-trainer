@@ -7,7 +7,9 @@ async function seed() {
     throw new Error('DATABASE_URL environment variable is not set');
   }
 
-  const sql = postgres(process.env.DATABASE_URL, { ssl: 'require' });
+  const connectionString = process.env.DATABASE_URL;
+  const isLocal = connectionString.includes('localhost') || connectionString.includes('127.0.0.1');
+  const sql = postgres(connectionString, isLocal ? {} : { ssl: 'require' });
   const db = drizzle(sql);
 
   console.log('Seeding database...');
@@ -24,11 +26,11 @@ async function seed() {
 
   console.log('✓ Blocked times seeded');
 
-  // Optional: Seed some demo clients
+  // Optional: Seed some demo clients (all PINs set to 1234)
   const demoClients = [
-    { name: 'Sharikh', sessionsRemaining: 24 },
-    { name: 'Riyan', sessionsRemaining: 0 },
-    { name: 'Tannu', sessionsRemaining: 2 },
+    { name: 'Sharikh', sessionsRemaining: 24, pin: '1234' },
+    { name: 'Riyan', sessionsRemaining: 0, pin: '1234' },
+    { name: 'Tannu', sessionsRemaining: 2, pin: '1234' },
   ];
 
   for (const client of demoClients) {

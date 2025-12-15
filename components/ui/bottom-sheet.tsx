@@ -12,6 +12,7 @@ interface BottomSheetProps {
   onConfirm: () => void;
   onCancel?: () => void;
   showCancelAction?: boolean;
+  variant?: 'default' | 'danger';
 }
 
 export function BottomSheet({
@@ -24,6 +25,7 @@ export function BottomSheet({
   onConfirm,
   onCancel,
   showCancelAction = false,
+  variant = 'default',
 }: BottomSheetProps) {
   const [mounted, setMounted] = useState(false);
 
@@ -78,7 +80,11 @@ export function BottomSheet({
           <div className="space-y-3">
             <button
               onClick={onConfirm}
-              className="w-full py-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-semibold text-lg transition-colors"
+              className={`w-full py-4 rounded-xl text-white font-semibold text-lg transition-colors ${
+                variant === 'danger'
+                  ? 'bg-red-600 hover:bg-red-500 active:bg-red-700'
+                  : 'bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700'
+              }`}
             >
               {confirmLabel}
             </button>

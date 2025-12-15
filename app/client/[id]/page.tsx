@@ -19,9 +19,16 @@ interface Booking {
   datetime: string;
 }
 
+type SlotStatus = 'available' | 'booked' | 'blocked' | 'past';
+
+interface SlotWithStatus {
+  time: string;
+  status: SlotStatus;
+}
+
 interface Availability {
   date: string;
-  slots: string[];
+  slots: SlotWithStatus[];
 }
 
 export default function ClientBookingPage() {
@@ -38,6 +45,33 @@ export default function ClientBookingPage() {
   const [error, setError] = useState<string | null>(null);
 
   const clientId = params.id as string;
+
+  // Verify session on mount
+  useEffect(() => {
+    const sessionData = localStorage.getItem('pt-client-session');
+    if (!sessionData) {
+      router.replace('/client');
+      return;
+    }
+    try {
+      const session = JSON.parse(sessionData);
+      // Check if session is for this client
+      if (session.clientId !== parseInt(clientId)) {
+        router.replace('/client');
+        return;
+      }
+      // Check if session is still valid (30 days)
+      const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+      if (!session.verified || session.timestamp < Date.now() - thirtyDays) {
+        localStorage.removeItem('pt-client-session');
+        router.replace('/client');
+        return;
+      }
+    } catch {
+      localStorage.removeItem('pt-client-session');
+      router.replace('/client');
+    }
+  }, [clientId, router]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -85,11 +119,16 @@ export default function ClientBookingPage() {
 
     setIsBooking(true);
 
-    // Optimistically remove the slot from availability
+    // Optimistically mark the slot as booked
     const previousAvailability = availability;
     setAvailability(prev => prev.map(day =>
       day.date === date
-        ? { ...day, slots: day.slots.filter(slot => slot !== time) }
+        ? {
+            ...day,
+            slots: day.slots.map(slot =>
+              slot.time === time ? { ...slot, status: 'booked' as SlotStatus } : slot
+            )
+          }
         : day
     ));
 
@@ -173,8 +212,9 @@ export default function ClientBookingPage() {
     }
   };
 
-  const handleSwitchClient = () => {
+  const handleLogout = () => {
     localStorage.removeItem('pt-client-id');
+    localStorage.removeItem('pt-client-session');
     router.push('/client');
   };
 
@@ -204,18 +244,20 @@ export default function ClientBookingPage() {
       {/* Header */}
       <div className="bg-[#141414] border-b border-[#262626] px-6 py-5">
         <div className="max-w-md mx-auto">
-          <button
-            onClick={handleSwitchClient}
-            className="text-gray-500 text-sm mb-2 hover:text-gray-400"
-          >
-            ← Switch client
-          </button>
-          <h1 className="text-2xl font-bold text-white">
-            Hi {client.name}
-          </h1>
-          <p className={`text-lg mt-1 ${client.sessionsRemaining <= 3 ? 'text-accent-hover font-medium' : 'text-gray-500'}`}>
+          <div className="flex justify-between items-start mb-2">
+            <h1 className="text-2xl font-bold text-white">
+              Hi {client.name}
+            </h1>
+            <button
+              onClick={handleLogout}
+              className="text-gray-500 text-sm hover:text-gray-400 px-3 py-1 rounded-lg border border-[#333] hover:border-[#444]"
+            >
+              Logout
+            </button>
+          </div>
+          <p className={`text-lg ${client.sessionsRemaining <= 3 ? 'text-accent-hover font-medium' : 'text-gray-500'}`}>
             <span className="text-accent font-bold">{client.sessionsRemaining}</span> session{client.sessionsRemaining !== 1 ? 's' : ''} remaining
-            {client.sessionsRemaining <= 3 && client.sessionsRemaining > 0 && ' ⚠️'}
+            {client.sessionsRemaining <= 3 && client.sessionsRemaining > 0 && ' '}
             {client.sessionsRemaining === 0 && ' - Contact your trainer!'}
           </p>
         </div>

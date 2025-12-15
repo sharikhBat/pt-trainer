@@ -12,6 +12,7 @@ export default function AddClientPage() {
   const { showToast, ToastComponent } = useToast();
   const [name, setName] = useState('');
   const [sessions, setSessions] = useState('');
+  const [pin, setPin] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const checkAuth = useCallback(() => {
@@ -41,6 +42,11 @@ export default function AddClientPage() {
       return;
     }
 
+    if (!pin || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+      showToast('Please enter a 4-digit PIN', 'error');
+      return;
+    }
+
     setIsSubmitting(true);
     const clientName = name.trim();
 
@@ -51,6 +57,7 @@ export default function AddClientPage() {
         body: JSON.stringify({
           name: clientName,
           sessionsRemaining: parseInt(sessions) || 0,
+          pin: pin,
         }),
       });
 
@@ -59,6 +66,7 @@ export default function AddClientPage() {
         // Clear form on success
         setName('');
         setSessions('');
+        setPin('');
         // Only redirect after confirmed success
         setTimeout(() => {
           router.push('/trainer/dashboard');
@@ -117,11 +125,25 @@ export default function AddClientPage() {
             inputMode="numeric"
           />
 
+          <Input
+            label="PIN (4 digits)"
+            type="text"
+            value={pin}
+            onChange={(e) => {
+              const value = e.target.value.replace(/\D/g, '').slice(0, 4);
+              setPin(value);
+            }}
+            placeholder="Enter 4-digit PIN"
+            maxLength={4}
+            inputMode="numeric"
+            pattern="[0-9]*"
+          />
+
           <Button
             type="submit"
             fullWidth
             size="lg"
-            disabled={isSubmitting || !name.trim()}
+            disabled={isSubmitting || !name.trim() || pin.length !== 4}
           >
             {isSubmitting ? 'Saving...' : 'Save Client'}
           </Button>

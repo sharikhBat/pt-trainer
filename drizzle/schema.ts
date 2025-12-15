@@ -3,6 +3,7 @@ import { pgTable, serial, text, integer, timestamp } from 'drizzle-orm/pg-core';
 export const clients = pgTable('clients', {
   id: serial('id').primaryKey(),
   name: text('name').notNull(),
+  pin: text('pin').notNull().default('0000'),
   sessionsRemaining: integer('sessions_remaining').notNull().default(0),
   createdAt: timestamp('created_at').defaultNow(),
 });

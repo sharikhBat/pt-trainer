@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getClient, updateClientSessions, deleteClient } from '@/lib/queries';
+import { getClient, updateClientSessions, updateClientPin, deleteClient } from '@/lib/queries';
 
 export async function GET(
   request: NextRequest,
@@ -26,8 +26,22 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    const { sessionsRemaining } = await request.json();
+    const body = await request.json();
+    const { sessionsRemaining, pin } = body;
 
+    // Handle PIN update
+    if (pin !== undefined) {
+      if (typeof pin !== 'string' || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+        return NextResponse.json({ error: 'PIN must be a 4-digit number' }, { status: 400 });
+      }
+      const client = await updateClientPin(parseInt(id), pin);
+      if (!client) {
+        return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+      }
+      return NextResponse.json(client);
+    }
+
+    // Handle sessions update
     if (typeof sessionsRemaining !== 'number' || sessionsRemaining < 0) {
       return NextResponse.json({ error: 'Invalid sessions count' }, { status: 400 });
     }
