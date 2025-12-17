@@ -16,6 +16,7 @@ interface BookingWithClient {
   hour: number;
   clientName: string;
   clientSessions: number;
+  clientSessionsExpiry: string | null;
   status?: string;
 }
 
@@ -247,6 +248,18 @@ export default function TrainerDashboard() {
     return `${displayHour}:00 ${ampm}`;
   };
 
+  const getExpiryInfo = (expiryDate: string | null) => {
+    if (!expiryDate) return null;
+    const expiry = new Date(expiryDate + 'T00:00:00');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffDays = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) return { text: 'exp', isUrgent: true, isExpired: true };
+    if (diffDays <= 7) return { text: `${diffDays}d`, isUrgent: true, isExpired: false };
+    return null; // Only show urgent expiry on dashboard
+  };
+
   if (isLoading) {
     return <TrainerDashboardSkeleton />;
   }
@@ -325,6 +338,7 @@ export default function TrainerDashboard() {
                   const isCancelled = booking.status === 'cancelled';
                   const isActionable = !isCompleted && !isCancelled;
                   const isLoadingThis = loadingIds.has(booking.id);
+                  const expiryInfo = getExpiryInfo(booking.clientSessionsExpiry);
 
                   return (
                     <Card
@@ -360,12 +374,12 @@ export default function TrainerDashboard() {
                           ) : (
                             <span
                               className={`text-sm tabular-nums ${
-                                booking.clientSessions <= 3
+                                booking.clientSessions <= 3 || expiryInfo?.isUrgent
                                   ? 'text-accent-hover'
                                   : 'text-gray-500'
                               }`}
                             >
-                              ({booking.clientSessions} left)
+                              ({booking.clientSessions} left{expiryInfo ? ` · ${expiryInfo.isExpired ? 'expired' : expiryInfo.text}` : ''})
                             </span>
                           )}
                         </div>

@@ -45,10 +45,19 @@ async function reset() {
   console.log('✓ Blocked times seeded');
 
   // Re-seed demo clients (all PINs set to 1234)
+  // Calculate expiry dates for demo purposes
+  const today = new Date();
+  const in30Days = new Date(today);
+  in30Days.setDate(in30Days.getDate() + 30);
+  const in7Days = new Date(today);
+  in7Days.setDate(in7Days.getDate() + 7);
+
+  const formatDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
   const demoClients = [
-    { name: 'Sharikh', sessionsRemaining: 24, pin: '1234' },
-    { name: 'Riyan', sessionsRemaining: 0, pin: '1234' },
-    { name: 'Tannu', sessionsRemaining: 2, pin: '1234' },
+    { name: 'Sharikh', sessionsRemaining: 24, pin: '1234', sessionsExpiresAt: formatDate(in30Days) },
+    { name: 'Riyan', sessionsRemaining: 0, pin: '1234', sessionsExpiresAt: null },
+    { name: 'Tannu', sessionsRemaining: 2, pin: '1234', sessionsExpiresAt: formatDate(in7Days) },
   ];
 
   for (const client of demoClients) {

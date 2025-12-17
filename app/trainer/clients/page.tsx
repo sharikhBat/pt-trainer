@@ -15,6 +15,7 @@ interface Client {
   name: string;
   pin: string;
   sessionsRemaining: number;
+  sessionsExpiresAt: string | null;
 }
 
 export default function ManageClientsPage() {
@@ -32,6 +33,10 @@ export default function ManageClientsPage() {
   // Name editing state
   const [editingNameId, setEditingNameId] = useState<number | null>(null);
   const [editingNameValue, setEditingNameValue] = useState('');
+
+  // Expiry editing state
+  const [editingExpiryId, setEditingExpiryId] = useState<number | null>(null);
+  const [editingExpiryValue, setEditingExpiryValue] = useState('');
 
   // Delete confirmation state
   const [deleteClient, setDeleteClient] = useState<Client | null>(null);
@@ -217,6 +222,66 @@ export default function ManageClientsPage() {
     setEditingNameValue('');
   };
 
+  const handleEditExpiry = (client: Client) => {
+    setEditingExpiryId(client.id);
+    setEditingExpiryValue(client.sessionsExpiresAt || '');
+  };
+
+  const handleSaveExpiry = async (clientId: number) => {
+    setPendingUpdates(prev => new Set([...prev, clientId]));
+
+    try {
+      const response = await fetch(`/api/clients/${clientId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionsExpiresAt: editingExpiryValue || null }),
+      });
+
+      if (response.ok) {
+        setClients(prev =>
+          prev.map(c => c.id === clientId ? { ...c, sessionsExpiresAt: editingExpiryValue || null } : c)
+        );
+        showToast('Pack expiry updated', 'success');
+        setEditingExpiryId(null);
+        setEditingExpiryValue('');
+      } else {
+        showToast('Failed to update expiry', 'error');
+      }
+    } catch {
+      showToast('Something went wrong', 'error');
+    } finally {
+      setPendingUpdates(prev => {
+        const next = new Set(prev);
+        next.delete(clientId);
+        return next;
+      });
+    }
+  };
+
+  const handleCancelEditExpiry = () => {
+    setEditingExpiryId(null);
+    setEditingExpiryValue('');
+  };
+
+  const formatExpiryDisplay = (expiryDate: string | null) => {
+    if (!expiryDate) return null;
+    const expiry = new Date(expiryDate + 'T00:00:00');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffDays = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) return { text: 'Expired', isUrgent: true, isExpired: true };
+    if (diffDays === 0) return { text: 'Expires today', isUrgent: true, isExpired: false };
+    if (diffDays === 1) return { text: 'Expires tomorrow', isUrgent: true, isExpired: false };
+    if (diffDays <= 7) return { text: `${diffDays} days left`, isUrgent: true, isExpired: false };
+
+    return {
+      text: expiry.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      isUrgent: false,
+      isExpired: false
+    };
+  };
+
   const handleDeleteClick = (client: Client) => {
     setDeleteClient(client);
   };
@@ -306,6 +371,8 @@ export default function ManageClientsPage() {
             const isPending = pendingUpdates.has(client.id);
             const isEditingPin = editingPinId === client.id;
             const isEditingName = editingNameId === client.id;
+            const isEditingExpiry = editingExpiryId === client.id;
+            const expiryInfo = formatExpiryDisplay(client.sessionsExpiresAt);
 
             return (
               <Card key={client.id} padding="md" className="space-y-3">
@@ -339,9 +406,9 @@ export default function ManageClientsPage() {
                   ) : (
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-white text-lg">{client.name}</span>
-                      {isLowSessions && client.sessionsRemaining > 0 && (
-                        <span className="text-accent-hover" title="Low sessions">⚠️</span>
-                      )}
+                      {(isLowSessions && client.sessionsRemaining > 0) || (expiryInfo?.isUrgent) ? (
+                        <span className="text-accent-hover" title={expiryInfo?.isExpired ? 'Pack expired' : 'Needs attention'}>⚠️</span>
+                      ) : null}
                       <button
                         onClick={() => handleEditName(client)}
                         className="text-gray-500 text-xs hover:text-gray-400 ml-1"
@@ -385,6 +452,55 @@ export default function ManageClientsPage() {
                       +
                     </button>
                   </div>
+                </div>
+
+                {/* Pack Expiry Row */}
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500 text-sm">Pack Expires</span>
+                  {isEditingExpiry ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="date"
+                        value={editingExpiryValue}
+                        onChange={(e) => setEditingExpiryValue(e.target.value)}
+                        className="px-2 py-1 bg-[#262626] border border-[#333] rounded text-white text-sm focus:border-accent focus:outline-none"
+                        autoFocus
+                      />
+                      <button
+                        onClick={() => handleSaveExpiry(client.id)}
+                        disabled={isPending}
+                        className="text-accent text-sm font-medium hover:text-accent-hover disabled:opacity-50"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={handleCancelEditExpiry}
+                        disabled={isPending}
+                        className="text-gray-500 text-sm hover:text-gray-400 disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      {expiryInfo ? (
+                        <span className={`text-sm ${
+                          expiryInfo.isExpired ? 'text-red-400 font-medium' :
+                          expiryInfo.isUrgent ? 'text-accent-hover font-medium' : 'text-gray-300'
+                        }`}>
+                          {expiryInfo.text}
+                        </span>
+                      ) : (
+                        <span className="text-gray-500 text-sm">Not set</span>
+                      )}
+                      <button
+                        onClick={() => handleEditExpiry(client)}
+                        className="text-accent text-sm font-medium hover:text-accent-hover"
+                      >
+                        {expiryInfo ? 'Edit' : 'Set'}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* PIN Row */}

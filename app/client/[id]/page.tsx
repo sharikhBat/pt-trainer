@@ -13,6 +13,7 @@ interface Client {
   id: number;
   name: string;
   sessionsRemaining: number;
+  sessionsExpiresAt: string | null;
 }
 
 interface Booking {
@@ -256,9 +257,31 @@ export default function ClientBookingPage() {
     );
   }
 
+  // Format expiry info for display
+  const getExpiryInfo = () => {
+    if (!client?.sessionsExpiresAt) return null;
+    const expiry = new Date(client.sessionsExpiresAt + 'T00:00:00');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffDays = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) return { text: 'Pack expired', isUrgent: true, isExpired: true };
+    if (diffDays === 0) return { text: 'Pack expires today', isUrgent: true, isExpired: false };
+    if (diffDays === 1) return { text: 'Pack expires tomorrow', isUrgent: true, isExpired: false };
+    if (diffDays <= 7) return { text: `Pack expires in ${diffDays} days`, isUrgent: true, isExpired: false };
+
+    return {
+      text: `Pack expires ${expiry.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+      isUrgent: false,
+      isExpired: false
+    };
+  };
+
   if (!client) {
     return null;
   }
+
+  const expiryInfo = getExpiryInfo();
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] pb-8">
@@ -294,6 +317,15 @@ export default function ClientBookingPage() {
             {client.sessionsRemaining <= 3 && client.sessionsRemaining > 0 && ' '}
             {client.sessionsRemaining === 0 && ' - Contact your trainer!'}
           </p>
+          {/* Pack expiry info */}
+          {expiryInfo && client.sessionsRemaining > 0 && (
+            <p className={`text-sm mt-1 ${
+              expiryInfo.isExpired ? 'text-red-400 font-medium' :
+              expiryInfo.isUrgent ? 'text-accent-hover' : 'text-gray-500'
+            }`}>
+              {expiryInfo.text}
+            </p>
+          )}
         </div>
       </div>
 

@@ -43,8 +43,8 @@ export async function getClient(id: number): Promise<Client | undefined> {
   return result[0];
 }
 
-export async function createClient(name: string, sessionsRemaining: number, pin: string = '0000'): Promise<Client> {
-  const result = await db.insert(clients).values({ name, sessionsRemaining, pin }).returning();
+export async function createClient(name: string, sessionsRemaining: number, pin: string = '0000', sessionsExpiresAt?: string | null): Promise<Client> {
+  const result = await db.insert(clients).values({ name, sessionsRemaining, pin, sessionsExpiresAt }).returning();
   return result[0];
 }
 
@@ -81,9 +81,21 @@ export async function isClientNameTaken(name: string, excludeId?: number): Promi
   return existing.length > 0;
 }
 
-export async function updateClientSessions(id: number, sessionsRemaining: number): Promise<Client | undefined> {
+export async function updateClientSessions(id: number, sessionsRemaining: number, sessionsExpiresAt?: string | null): Promise<Client | undefined> {
+  const updateData: { sessionsRemaining: number; sessionsExpiresAt?: string | null } = { sessionsRemaining };
+  if (sessionsExpiresAt !== undefined) {
+    updateData.sessionsExpiresAt = sessionsExpiresAt;
+  }
   const result = await db.update(clients)
-    .set({ sessionsRemaining })
+    .set(updateData)
+    .where(eq(clients.id, id))
+    .returning();
+  return result[0];
+}
+
+export async function updateClientExpiry(id: number, sessionsExpiresAt: string | null): Promise<Client | undefined> {
+  const result = await db.update(clients)
+    .set({ sessionsExpiresAt })
     .where(eq(clients.id, id))
     .returning();
   return result[0];
@@ -114,7 +126,7 @@ export async function getClientBookings(clientId: number): Promise<Booking[]> {
     .orderBy(asc(bookings.date), asc(bookings.hour));
 }
 
-export async function getUpcomingBookings(): Promise<(Booking & { clientName: string; clientSessions: number })[]> {
+export async function getUpcomingBookings(): Promise<(Booking & { clientName: string; clientSessions: number; clientSessionsExpiry: string | null })[]> {
   const result = await db.select({
     id: bookings.id,
     clientId: bookings.clientId,
@@ -124,6 +136,7 @@ export async function getUpcomingBookings(): Promise<(Booking & { clientName: st
     createdAt: bookings.createdAt,
     clientName: clients.name,
     clientSessions: clients.sessionsRemaining,
+    clientSessionsExpiry: clients.sessionsExpiresAt,
   })
     .from(bookings)
     .innerJoin(clients, eq(bookings.clientId, clients.id))
@@ -132,7 +145,7 @@ export async function getUpcomingBookings(): Promise<(Booking & { clientName: st
   return result;
 }
 
-export async function getUpcomingAndTodayCompletedBookings(): Promise<(Booking & { clientName: string; clientSessions: number })[]> {
+export async function getUpcomingAndTodayCompletedBookings(): Promise<(Booking & { clientName: string; clientSessions: number; clientSessionsExpiry: string | null })[]> {
   const today = getTodayDateStr();
 
   // Get upcoming bookings
@@ -145,6 +158,7 @@ export async function getUpcomingAndTodayCompletedBookings(): Promise<(Booking &
     createdAt: bookings.createdAt,
     clientName: clients.name,
     clientSessions: clients.sessionsRemaining,
+    clientSessionsExpiry: clients.sessionsExpiresAt,
   })
     .from(bookings)
     .innerJoin(clients, eq(bookings.clientId, clients.id))
@@ -161,6 +175,7 @@ export async function getUpcomingAndTodayCompletedBookings(): Promise<(Booking &
     createdAt: bookings.createdAt,
     clientName: clients.name,
     clientSessions: clients.sessionsRemaining,
+    clientSessionsExpiry: clients.sessionsExpiresAt,
   })
     .from(bookings)
     .innerJoin(clients, eq(bookings.clientId, clients.id))
@@ -180,6 +195,7 @@ export async function getUpcomingAndTodayCompletedBookings(): Promise<(Booking &
     createdAt: bookings.createdAt,
     clientName: clients.name,
     clientSessions: clients.sessionsRemaining,
+    clientSessionsExpiry: clients.sessionsExpiresAt,
   })
     .from(bookings)
     .innerJoin(clients, eq(bookings.clientId, clients.id))

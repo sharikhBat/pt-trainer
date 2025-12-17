@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getClient, updateClientSessions, updateClientPin, updateClientName, isClientNameTaken, deleteClient } from '@/lib/queries';
+import { getClient, updateClientSessions, updateClientPin, updateClientName, updateClientExpiry, isClientNameTaken, deleteClient } from '@/lib/queries';
 
 export async function GET(
   request: NextRequest,
@@ -28,7 +28,7 @@ export async function PATCH(
     const { id } = await params;
     const numId = parseInt(id);
     const body = await request.json();
-    const { sessionsRemaining, pin, name } = body;
+    const { sessionsRemaining, sessionsExpiresAt, pin, name } = body;
 
     // Handle name update
     if (name !== undefined) {
@@ -59,12 +59,21 @@ export async function PATCH(
       return NextResponse.json(client);
     }
 
-    // Handle sessions update
+    // Handle expiry-only update
+    if (sessionsExpiresAt !== undefined && sessionsRemaining === undefined) {
+      const client = await updateClientExpiry(numId, sessionsExpiresAt);
+      if (!client) {
+        return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+      }
+      return NextResponse.json(client);
+    }
+
+    // Handle sessions update (optionally with expiry)
     if (typeof sessionsRemaining !== 'number' || sessionsRemaining < 0) {
       return NextResponse.json({ error: 'Invalid sessions count' }, { status: 400 });
     }
 
-    const client = await updateClientSessions(numId, sessionsRemaining);
+    const client = await updateClientSessions(numId, sessionsRemaining, sessionsExpiresAt);
 
     if (!client) {
       return NextResponse.json({ error: 'Client not found' }, { status: 404 });

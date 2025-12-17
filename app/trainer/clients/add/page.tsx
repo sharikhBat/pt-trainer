@@ -12,6 +12,7 @@ export default function AddClientPage() {
   const { showToast, ToastComponent } = useToast();
   const [name, setName] = useState('');
   const [sessions, setSessions] = useState('');
+  const [expiryDate, setExpiryDate] = useState('');
   const [pin, setPin] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -51,12 +52,14 @@ export default function AddClientPage() {
     const clientName = name.trim();
 
     try {
+      const sessionsCount = parseInt(sessions) || 0;
       const response = await fetch('/api/clients', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: clientName,
-          sessionsRemaining: parseInt(sessions) || 0,
+          sessionsRemaining: sessionsCount,
+          sessionsExpiresAt: sessionsCount > 0 && expiryDate ? expiryDate : null,
           pin: pin,
         }),
       });
@@ -66,6 +69,7 @@ export default function AddClientPage() {
         // Clear form on success
         setName('');
         setSessions('');
+        setExpiryDate('');
         setPin('');
         // Only redirect after confirmed success
         setTimeout(() => {
@@ -124,6 +128,22 @@ export default function AddClientPage() {
             min="0"
             inputMode="numeric"
           />
+
+          {/* Only show expiry when sessions > 0 */}
+          {parseInt(sessions) > 0 && (
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-400">
+                Pack Expires (optional)
+              </label>
+              <input
+                type="date"
+                value={expiryDate}
+                onChange={(e) => setExpiryDate(e.target.value)}
+                className="w-full px-4 py-3 bg-[#141414] border border-[#262626] rounded-xl text-white focus:border-accent focus:outline-none"
+              />
+              <p className="text-xs text-gray-500">When should this session pack expire?</p>
+            </div>
+          )}
 
           <Input
             label="PIN (4 digits)"

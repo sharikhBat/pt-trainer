@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { name, sessionsRemaining, pin } = await request.json();
+    const { name, sessionsRemaining, pin, sessionsExpiresAt } = await request.json();
 
     if (!name || typeof name !== 'string') {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
@@ -42,7 +42,9 @@ export async function POST(request: NextRequest) {
 
     const sessions = parseInt(sessionsRemaining) || 0;
     const clientPin = pin || '0000';
-    const client = await createClient(trimmedName, sessions, clientPin);
+    // Only set expiry if sessions > 0 and expiry is provided
+    const expiry = sessions > 0 && sessionsExpiresAt ? sessionsExpiresAt : null;
+    const client = await createClient(trimmedName, sessions, clientPin, expiry);
 
     return NextResponse.json(client, { status: 201 });
   } catch (error) {

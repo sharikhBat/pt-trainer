@@ -5,6 +5,7 @@ export const clients = pgTable('clients', {
   name: text('name').notNull(),
   pin: text('pin').notNull().default('0000'),
   sessionsRemaining: integer('sessions_remaining').notNull().default(0),
+  sessionsExpiresAt: text('sessions_expires_at'), // "YYYY-MM-DD" format, null means no expiry
   createdAt: timestamp('created_at').defaultNow(),
 });
 
